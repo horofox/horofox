@@ -12,12 +12,14 @@
     "test:tools": "tsx scripts/test-tools.ts",
     "test:parity": "tsx scripts/test-parity.ts",
     "test:e2e": "tsx scripts/test-agent-e2e.ts",
-    "bot:social": "tsx bot/social/run.ts"
+    "bot:social": "tsx bot/social/run.ts",
+    "mcp": "tsx bot/mcp.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^2.0.0",
     "@ai-sdk/react": "^2.0.0",
     "@hiero-ledger/sdk": "^2.87.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@nktkas/hyperliquid": "^0.33.3",
     "@x402/core": "^2.25.0",
     "@x402/hedera": "^2.25.0",
