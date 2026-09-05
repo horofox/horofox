@@ -63,7 +63,7 @@ export default function Landing() {
         <div className="price-line"><span>0.1%</span> — {t("price.fee")}</div>
         <p className="pricing-note">{t("price.note")}</p>
         <div className="price-line" style={{ marginTop: 18 }}>
-          <span>$0.001</span> {t("price.perCall")} — {t("price.x402")}
+          <span>$0.01</span> {t("price.perCall")} — {t("price.x402")}
         </div>
         <p className="pricing-note">{t("price.x402desc")}</p>
       </section>

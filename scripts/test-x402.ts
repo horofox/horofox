@@ -15,6 +15,11 @@ async function waitReady(url: string, ms = 180_000) {
 }
 
 async function main() {
+  // 원가 방어선. 한 번 원가 아래로 팔다가 뒤늦게 발견한 적이 있어 테스트로 막는다.
+  // 원가 근거: 고정 프롬프트 1,166 토큰(시스템 101 + 도구 13개 1,065) + 도구 결과 800 + 출력 456,
+  // 요율 $0.001/1k(입력)·$0.004/1k(출력) → $0.00379/호출. scripts/_measure-prompt.ts 로 재측정 가능.
+  const MEASURED_COST_PER_CALL = 0.00379;
+
   let fail = 0;
   const t = (n: string, ok: boolean, x = "") => { if (!ok) fail++; console.log(`  ${ok ? "✓" : "✗"} ${n}${x ? "  " + x : ""}`); };
 
@@ -25,6 +30,9 @@ async function main() {
   const price = Number(/PRICE_USDC = ([\d.]+)/.exec(src)?.[1]);
   t("코드에 가격 상수 존재", Number.isFinite(price), `$${price}`);
   t("랜딩 표시가와 일치", landing.includes(`$${price}`), `랜딩=$${price}`);
+  t("가격이 실측 원가보다 높다 (팔수록 손해가 아니어야 한다)",
+    price > MEASURED_COST_PER_CALL,
+    `$${price} vs 원가 $${MEASURED_COST_PER_CALL} — ${(price / MEASURED_COST_PER_CALL).toFixed(2)}배`);
   t("6 decimals 로 환산", src.includes("1_000_000"));
   void dict;
 

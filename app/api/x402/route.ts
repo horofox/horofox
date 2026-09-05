@@ -12,7 +12,13 @@ export const runtime = "nodejs";
 const USDC_BASE_SEPOLIA = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 // 호출당 가격. USDC 는 6 decimals 이므로 1000 = $0.001.
 // 랜딩에 표시하는 값과 반드시 같아야 한다 — 다르면 그건 거짓 광고다.
-const PRICE_USDC = 0.001;
+// 호출당 가격. USDC 는 6 decimals 이므로 10000 = $0.01.
+//
+// $0.001 로 시작했다가 올렸다. 실측한 원가가 호출당 $0.00379 였다
+// (고정 프롬프트 1,166 토큰 + 도구 결과 + 출력 — scripts/_measure-prompt.ts).
+// 즉 원가의 26% 에 팔고 있었고, 호출이 늘수록 손해가 커지는 구조였다.
+// $0.01 은 원가의 약 2.6배다 — 에이전트에겐 여전히 싸고 우리는 마진이 남는다.
+const PRICE_USDC = 0.01;
 const MAX_AMOUNT = String(Math.round(PRICE_USDC * 1_000_000));
 
 // 팔 만한 데이터는 Hyperliquid 에서 온다.
