@@ -87,7 +87,7 @@ https://github.com/user-attachments/assets/demo-placeholder
 ## Quick start
 
 ```bash
-git clone https://github.com/onlyusdc/horofox.git
+git clone https://github.com/horofox/horofox.git
 cd horofox
 npm install
 cp .env.example .env.local   # set OPENAI_API_KEY (any OpenAI-compatible endpoint works, e.g. Z.ai GLM)

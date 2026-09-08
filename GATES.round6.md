@@ -7,7 +7,7 @@ Scope: 유저 0명을 벗어나기 위한 **유입 채널**을 만든다.
 
 - `research/pages/leaderboard.txt:16` — "Posting about Bankr on X (Social)".
   Bankr 의 Leaderboard 는 허영 지표가 아니라 **X 게시를 점수화하는 유입 장치**다. 엔진은 $BNKR 보상이다.
-- 우리는 토큰을 안 찍기로 했고 그게 이름(`onlyusdc`)이 됐다. → 같은 장치를 못 쓴다.
+- 우리는 토큰을 안 찍기로 했다. → 같은 장치를 못 쓴다.
   **봇 자체가 유입 장치가 되어야 한다.**
 
 ## 비용 (이번 라운드의 절반은 기능이 아니라 지출 상한이다)
@@ -47,7 +47,7 @@ X 는 링크 하나가 게시 13건 값이다. 매출은 0 이다. 상한을 코
 - [x] G4: dry-run 실제 실행 — 외부로 나가는 요청 0건, 게시될 문장이 출력된다.
   CHECK: cd /Users/minpro/ZCodeProject/agent-terminal && npx tsx bot/social/run.ts --channel all --once --dry-run 2>&1 | tail -20
   EXPECT: /DRY-RUN/
-  EVIDENCE: https://onlyusdc.com/metrics | [x] 자격증명이 없어 멘션 조회를 건너뜁니다
+  EVIDENCE: https://horofox.com/metrics | [x] 자격증명이 없어 멘션 조회를 건너뜁니다
 
 - [x] G5: 두뇌를 재사용한다 — 소셜 커넥터가 `runAgent` 를 경유하고 에이전트 로직을 복제하지 않는다.
   CHECK: cd /Users/minpro/ZCodeProject/agent-terminal && bash -c 'U=$(grep -rl "runAgent" bot/ | wc -l | tr -d " "); D=$(grep -rc "generateText" bot/ | grep -v ":0" | wc -l | tr -d " "); echo "uses_runAgent=$U generateText_sites=$D"; [ "$D" = 1 ] && echo BRAIN-SHARED || echo BRAIN-DUPLICATED'
