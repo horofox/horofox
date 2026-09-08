@@ -25,7 +25,7 @@ Why this is defensible:
 - **The protocol pays it, not a middleman.** Builder codes are a Hyperliquid primitive, so it isn't the kind of fee a competitor can undercut to 0% as a growth tactic.
 - **It is now the standard way to integrate.** Over two months, three venues shipped on builder codes: [VALR](https://blog.valr.com/blog/valr-launches-200-hyperliquid-perps-markets), Africa's largest crypto exchange by volume and *"the first time a centralized exchange has integrated Hyperliquid directly"*; [Oku](https://x.com/okutrade/status/2079919154149171308); and Coinbase's [Base app](https://x.com/baseapp/status/2090122188074491951). We are on the same rail an exchange chose.
 - **No token to launch.** No contract, no audit, no unlock schedule, no cycle risk.
-- **Bankr routes Hyperliquid trades and doesn't collect this.** Their Hyperliquid reference (`skills/bankr/references/hyperliquid.md`, 192 lines) mentions "builder" exactly once — in the phrase *"HIP-3 builder-deployed dexes"* — and never as a fee they take.
+- **Bankr routes Hyperliquid trades and doesn't collect this.** Their own Hyperliquid reference — `skills/bankr/references/hyperliquid.md` in Bankr's public skills repo, 192 lines — mentions "builder" exactly once — in the phrase *"HIP-3 builder-deployed dexes"* — and never as a fee they take.
 
 Where it lives in the code — three pieces that used to be unconnected:
 
@@ -64,9 +64,9 @@ Honest competitor analysis, including where rivals beat us on price and platform
 
 `/metrics` publishes the numbers, but `live` and `paper` are separate objects that **share no field names**, and there is no combined total anywhere in the payload — you cannot add them by accident because the shape doesn't offer it. `scripts/test-public-metrics.ts` asserts exactly that, including that no exposed value equals a live+paper sum.
 
-https://github.com/user-attachments/assets/demo-placeholder
-<!-- Record a 15–30s demo (terminal + dashboard) and replace the line above with the real GIF:
-     docs/demo.gif — e.g. `npm run dev` then screen-record /terminal and /dashboard -->
+<!-- Demo GIF goes here. Record a 15–30s demo (terminal + dashboard) and put the
+     upload URL on its own line above this comment:
+     `npm run dev`, then screen-record /terminal and /dashboard. -->
 
 ## Features
 
