@@ -18,10 +18,11 @@
   "dependencies": {
     "@ai-sdk/openai": "^2.0.0",
     "@ai-sdk/react": "^2.0.0",
-    "@hiero-ledger/sdk": "^2.87.0",
+    "@hiero-ledger/sdk": "^2.85.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@nktkas/hyperliquid": "^0.33.3",
     "@x402/core": "^2.25.0",
+    "@x402/fetch": "^2.25.0",
     "@x402/hedera": "^2.25.0",
     "ai": "^5.0.0",
     "discord.js": "^14.27.0",
