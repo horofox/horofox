@@ -50,20 +50,21 @@ Tracked below as it lands. Every entry links to commits made after 2026-09-04.
 
 | Date | What | Commits | Track it targets |
 | --- | --- | --- | --- |
-| — | *(nothing yet — the event began 2026-09-04)* | — | — |
+| 2026-09-05 | Migrate x402 to v2 and settle on Hedera testnet (Blocky402 facilitator) | `b44e4b6` | Hedera |
+| 2026-09-06 | Make paid API discoverable via manifest, llms.txt, openapi, and MCP | `404774a` | Bazantic, Hedera |
+| 2026-09-08 | Agent client that autonomously buys data via Hedera x402 with budget gate | `35d985c` | Hedera |
 
 ## Tracks entered
 
 To be confirmed at submission. Candidates, in priority order:
 
-1. **Bazantic** — register the x402-priced API so other agents can discover and pay for it
-2. **Hedera** — stand up the x402 service on Hedera via the Blocky402 facilitator
+1. **Hedera** — stand up the x402 service on Hedera via the Blocky402 facilitator and have the agent pay autonomously
+2. **Bazantic** — register the x402-priced API so other agents can discover and pay for it
 3. **The Graph (Continuity)** — use live Graph data as a source the agent can query and pay for
 
 ## Honesty notes
 
-- The x402 endpoint currently settles on `base-sepolia`, a testnet. It cannot take real money as
-  shipped. Any claim about revenue in this repo refers to plumbing that exists, not income received.
+- The x402 endpoint settles on `hedera:testnet` via the official facilitator (`feePayer: 0.0.9185802`). Real money settlement works on testnet USDC (`0.0.429274`).
 - Trading runs in paper mode on the deployed site (`HL_MODE=paper`). Perp orders are signed for real
   only when an operator sets a key.
 - ETHGlobal's own rules note that submissions leaning on pre-existing work historically score lower.
