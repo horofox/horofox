@@ -79,10 +79,27 @@ Honest competitor analysis, including where rivals beat us on price and platform
 - **Hyperliquid perps (paper)** — real-time mid prices, positions with live PnL
 - **Token launchpad (paper)** — bonding curve with 1% fee accrual (the "fees fund compute" flywheel)
 - **LLM gateway** — OpenAI-compatible proxy with per-key credit metering
-- **x402 paid endpoint** — HTTP 402 paywall (exact / base-sepolia) with a demo mode
+- **Hedera x402 v2 micropayments** — HTTP 402 paywall on Hedera testnet (exact scheme via Blocky402 facilitator) + autonomous agent payment client with budget gate
+- **Self-funding engine** — Hyperliquid builder fees settled into LLM credits idempotently
 - **Revenue engine** — swap fees + gateway metering vs. LLM cost → self-sustaining flywheel metric
 - **Trade journal + webhooks** — every execution journaled and POSTed out
 - **Skills** — drop a file in `skills/` to extend the agent
+
+## ETHOnline 2026: Closed-Loop Self-Funding Agent
+
+> *"An agent that cannot afford to answer you — until it earns the fee itself."*
+
+While other agentic payment projects exclusively demonstrate how agents spend pre-funded wallets, Horofox closes the autonomous economic loop:
+1. **Zero-Balance Rejection**: Agent returns HTTP 402 when balance is $0.
+2. **Autonomous Earning**: Executes Hyperliquid trades with non-optional 0.1% builder code.
+3. **Idempotent Credit Conversion**: Settles on-chain fees into inference credits via `lib/selffund.ts`.
+4. **Autonomous Hedera x402 Micropayments**: Purchases live external data via Hedera testnet exact scheme and Blocky402 facilitator co-signing.
+5. **Auditable Ledger**: Answers user with paid intelligence and displays transparent on-chain accounting.
+
+Run the 7-beat automated demo runner:
+```bash
+npx tsx scripts/demo-loop.ts
+```
 
 ## Quick start
 
