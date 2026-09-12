@@ -10,6 +10,8 @@
 import { NextResponse } from "next/server";
 import { portfolio } from "@/lib/ledger";
 import { assets, midPrice } from "@/lib/hl/trade";
+import { annualisedPct, gatherInsights } from "@/lib/insights";
+import { classify } from "@/lib/coverage";
 import { consume, subjectOf, CALLS_PER_PAYMENT } from "@/lib/quota";
 import { identify } from "@/lib/auth";
 import { getHttpServer, requestContext, isPaid, NETWORK, PRICE_USD, facilitatorUrl } from "@/lib/x402/server";
@@ -18,6 +20,33 @@ export const runtime = "nodejs";
 
 /** 코어가 라우트를 매칭하는 키. 쿼리스트링은 포함하지 않는다. */
 const ROUTE = "GET /api/x402";
+
+async function fundingSnapshot(symbol: string) {
+  const asset = (await assets()).get(symbol);
+  if (!asset) throw new Error(`Hyperliquid에 없는 심볼: ${symbol}`);
+  const body = asset.dex
+    ? { type: "metaAndAssetCtxs", dex: asset.dex }
+    : { type: "metaAndAssetCtxs" };
+  const response = await fetch("https://api.hyperliquid.xyz/info", {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+  });
+  if (!response.ok) throw new Error(`Hyperliquid 응답 오류: HTTP ${response.status}`);
+  const [meta, contexts] = (await response.json()) as [
+    { universe: { name: string }[] },
+    { funding: string; markPx: string }[],
+  ];
+  const index = meta.universe.findIndex(({ name }) => name === asset.name);
+  const context = contexts[index];
+  if (index < 0 || !context) throw new Error(`${symbol} 컨텍스트를 찾을 수 없습니다`);
+  const hourly = Number(context.funding);
+  return {
+    asset,
+    hourly,
+    annualisedPct: annualisedPct(hourly),
+    paidBy: hourly >= 0 ? "longs pay shorts" : "shorts pay longs",
+    markPrice: Number(context.markPx),
+  };
+}
 
 const TOOLS = {
   /** 퍼프 중간가. 코어 + HIP-3 전부. */
@@ -42,26 +71,52 @@ const TOOLS = {
   funding: async (params: URLSearchParams) => {
     const symbol = (params.get("symbol") ?? "").trim().toUpperCase();
     if (!symbol) throw new Error("symbol 파라미터가 필요합니다");
-    const map = await assets();
-    const a = map.get(symbol);
-    if (!a) throw new Error(`Hyperliquid에 없는 심볼: ${symbol}`);
-    const body = a.dex
-      ? { type: "metaAndAssetCtxs", dex: a.dex }
-      : { type: "metaAndAssetCtxs" };
-    const res = await fetch("https://api.hyperliquid.xyz/info", {
-      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
-    });
-    if (!res.ok) throw new Error(`Hyperliquid 응답 오류: HTTP ${res.status}`);
-    const [meta, ctxs] = (await res.json()) as [{ universe: { name: string }[] }, { funding: string; markPx: string }[]];
-    const i = meta.universe.findIndex((u) => u.name === a.name);
-    if (i < 0) throw new Error(`${symbol} 컨텍스트를 찾을 수 없습니다`);
-    const hourly = Number(ctxs[i]!.funding);
+    const snapshot = await fundingSnapshot(symbol);
     return {
-      ok: true, symbol, hourly,
-      annualisedPct: hourly * 24 * 365 * 100,
+      ok: true, symbol, hourly: snapshot.hourly,
+      annualisedPct: snapshot.annualisedPct,
       // 부호의 의미를 명시한다 — 에이전트가 방향을 뒤집어 해석하면 돈을 잃는다
-      paidBy: hourly >= 0 ? "longs pay shorts" : "shorts pay longs",
-      markPrice: Number(ctxs[i]!.markPx),
+      paidBy: snapshot.paidBy,
+      markPrice: snapshot.markPrice,
+      source: "hyperliquid",
+    };
+  },
+
+  brief: async (params: URLSearchParams) => {
+    const symbol = (params.get("symbol") ?? "").trim().toUpperCase();
+    if (!symbol) throw new Error("symbol 파라미터가 필요합니다");
+    const rawLimit = params.get("limit") ?? "10";
+    const limit = Number(rawLimit);
+    if (!/^\d+$/.test(rawLimit) || !Number.isInteger(limit) || limit < 1 || limit > 10) {
+      throw new Error("limit은 1에서 10 사이의 정수여야 합니다");
+    }
+    const rawEquitiesOnly = params.get("equitiesOnly") ?? "true";
+    if (rawEquitiesOnly !== "true" && rawEquitiesOnly !== "false") {
+      throw new Error("equitiesOnly는 true 또는 false여야 합니다");
+    }
+    const equitiesOnly = rawEquitiesOnly === "true";
+    const [insights, snapshot] = await Promise.all([
+      gatherInsights(limit, equitiesOnly),
+      fundingSnapshot(symbol),
+    ]);
+    if (!snapshot.asset.dex || (equitiesOnly && classify(snapshot.asset) !== "equity")) {
+      throw new Error(`${symbol}은 요청한 HIP-3 범위에 없습니다`);
+    }
+    const funding = [...insights.topFunding, ...insights.bottomFunding]
+      .find((row) => row.symbol.toUpperCase() === symbol);
+    return {
+      ok: true,
+      symbol,
+      dex: snapshot.asset.dex,
+      perpCaveat: "Perpetual future, not a share; no ownership, voting, or dividends.",
+      price: funding?.markPx ?? snapshot.markPrice,
+      hourly: funding?.hourly ?? snapshot.hourly,
+      annualisedPct: funding?.annualisedPct ?? snapshot.annualisedPct,
+      paidBy: funding
+        ? funding.hourly >= 0 ? "longs pay shorts" : "shorts pay longs"
+        : snapshot.paidBy,
+      maxLeverage: snapshot.asset.maxLeverage,
+      measuredAt: insights.measuredAt,
       source: "hyperliquid",
     };
   },
@@ -86,44 +141,55 @@ async function handle(req: Request) {
   }
 
   const paymentHeader = req.headers.get("payment-signature") ?? req.headers.get("x-payment");
+  const paidMode = isPaid();
 
-  // 무료 한도. 결제 헤더가 있으면 결제 경로로 보내고 한도를 소모하지 않는다 —
+  // 무료 한도. 결제 헤더가 있으면 결제 계층이 처리하므로 한도를 건드리지 않는다 —
   // 돈을 낸 호출까지 무료분에서 깎으면 이중 과금이다.
   if (!paymentHeader) {
     const who = subjectOf(req, identify(req)?.userId ?? null);
     const q = await consume(who);
-    if (!q.allowed) {
+
+    if (q.allowed) {
+      // 허용량 안이면 유료 모드여도 그냥 준다 — llms.txt 가 약속한 "결제 전에 먼저 써보기"다.
+      try {
+        return NextResponse.json({
+          ...(await runTool(toolName, url.searchParams)),
+          ...(paidMode
+            ? { mode: "free-allowance", remaining: q.remaining }
+            : { mode: "demo", note: `HEDERA_ACCOUNT_ID 설정 시 유료 전환 (hedera:${NETWORK})` }),
+        });
+      } catch (e) {
+        return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : String(e) }, { status: 400 });
+      }
+    }
+
+    // 허용량 소진. 유료 모드면 **여기서 막지 않는다** — 아래 결제 계층이
+    // `PAYMENT-REQUIRED` 헤더를 실은 402 를 만든다. 여기서 돌려주면
+    // "x402 로 내라"고 말하면서 낼 대상은 주지 않는 402 가 되어, 에이전트가 결제할 수 없다.
+    if (!paidMode) {
       return NextResponse.json(
         {
           x402Version: 2,
           error: "free quota exhausted",
           quota: { used: q.used, freeLimit: q.freeLimit, credits: q.credits },
-          hint: `Pay $${PRICE_USD} over x402 to continue, or settle for ${CALLS_PER_PAYMENT} more calls.`,
+          hint: `Set HEDERA_ACCOUNT_ID to enable x402 payment, or settle for ${CALLS_PER_PAYMENT} more calls.`,
         },
         { status: 402 },
       );
     }
-  }
-
-  // 데모 모드: 수취 계정 미설정 → 무료 실행.
-  // 유료화를 켜려면 HEDERA_ACCOUNT_ID 를 넣는다.
-  if (!isPaid()) {
-    try {
-      return NextResponse.json({
-        ...(await runTool(toolName, url.searchParams)),
-        mode: "demo",
-        note: `HEDERA_ACCOUNT_ID 설정 시 유료 전환 (hedera:${NETWORK})`,
-      });
-    } catch (e) {
-      return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : String(e) }, { status: 400 });
-    }
+  } else if (!paidMode) {
+    return NextResponse.json(
+      { x402Version: 2, error: "payment verification unavailable" },
+      { status: 402 },
+    );
   }
 
   // 유료 경로 — 코어가 402 생성·검증·정산을 전부 처리한다.
   // 우리는 그 판정에 따라 툴을 실행할지만 정한다.
   try {
     const http = await getHttpServer(ROUTE);
-    const result = await http.processHTTPRequest(requestContext(req, ROUTE));
+    const context = requestContext(req, ROUTE);
+    const result = await http.processHTTPRequest(context);
 
     if (result.type === "payment-error") {
       const r = result.response;
@@ -147,18 +213,54 @@ async function handle(req: Request) {
       });
     }
 
-    const data = await runTool(toolName, url.searchParams);
-
     if (result.type === "payment-verified") {
+      let data: Awaited<ReturnType<typeof runTool>>;
+      try {
+        data = await runTool(toolName, url.searchParams);
+      } catch (error) {
+        const canceled = await result.cancellationDispatcher.cancel({ reason: "handler_threw", error });
+        const headers = http.createFailurePathSettlementHeaders(
+          canceled,
+          result.beforeHandlerSettlement,
+          result.paymentPayload,
+        );
+        return NextResponse.json(
+          {
+            x402Version: 2,
+            error: `payment layer failed: ${error instanceof Error ? error.message : String(error)}`,
+            facilitator: facilitatorUrl(NETWORK),
+          },
+          { status: 400, headers },
+        );
+      }
+
+      const settlement = await http.processSettlement(
+        result.paymentPayload,
+        result.paymentRequirements,
+        result.declaredExtensions,
+        { request: context, responseBody: Buffer.from(JSON.stringify(data)) },
+        undefined,
+        result.beforeHandlerSettlement,
+      );
+      if (!settlement.success) {
+        const responseBody = typeof settlement.response.body === "string"
+          ? settlement.response.body
+          : JSON.stringify(settlement.response.body ?? {});
+        return new Response(responseBody, {
+          status: settlement.response.status,
+          headers: settlement.response.headers,
+        });
+      }
+
       return NextResponse.json({
         ...data,
         mode: "paid",
         network: `hedera:${NETWORK}`,
-        // 결제자·정산 트랜잭션은 코어가 준 것을 그대로 싣는다. 우리가 만들어내지 않는다.
-        payer: (result.paymentPayload as { payload?: { from?: string } } | undefined)?.payload?.from,
-        transaction: result.beforeHandlerSettlement?.result?.transaction,
-      });
+        payer: settlement.payer ?? (result.paymentPayload as { payload?: { from?: string } }).payload?.from,
+        transaction: settlement.transaction,
+      }, { headers: settlement.headers });
     }
+    const data = await runTool(toolName, url.searchParams);
     return NextResponse.json({ ...data, mode: "free" });
   } catch (e) {
     return NextResponse.json(
