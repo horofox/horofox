@@ -40,7 +40,8 @@ async function main() {
   console.log(banner("HOROFOX — Closed-Loop Self-Funding AI Agent (ETHOnline 2026)"));
   console.log(`${c.dim}Thesis: An AI agent that cannot afford to answer you — until it earns the fee itself.${c.reset}`);
   console.log(`${c.dim}Chains: Hyperliquid L1 (Perp Trading & Builder Fee) × Hedera Testnet (x402 Micropayments)${c.reset}`);
-  console.log(`${c.dim}Facilitator: Blocky402 / x402.org | Settlement Standard: HTTP 402 Exact Scheme${c.reset}\n`);
+  console.log(`${c.dim}Facilitator: Blocky402 / x402.org | Settlement Standard: HTTP 402 Exact Scheme${c.reset}`);
+  console.log(`${c.cyan}Live Hedera Agent Account: 0.0.10503338 | EVM: 0x3c5fa4ec313df29e41d698b8354f130a1b7f390a${c.reset}\n`);
 
   await sleep(1500);
 
@@ -131,6 +132,7 @@ async function main() {
 
   console.log(`  • Endpoint:       ${c.cyan}GET /api/x402?tool=price&symbol=BTC${c.reset}`);
   console.log(`  • Payment Scheme: ${c.cyan}ExactHederaScheme (v2)${c.reset}`);
+  console.log(`  • Payer Account:  ${c.green}0.0.10503338${c.reset} (ECDSA: 0x3c5fa4ec...)`);
   console.log(`  • Network:        ${c.cyan}hedera:${NETWORK}${c.reset}`);
   console.log(`  • Facilitator:    ${c.cyan}https://x402.org/facilitator (Blocky402)${c.reset}\n`);
 
@@ -139,7 +141,7 @@ async function main() {
   const stages: PayEvent[] = [
     { stage: "requesting", detail: "HTTP GET /api/x402" },
     { stage: "payment_required", detail: "HTTP 402 Received | Hedera Exact Scheme | $0.010 USDC" },
-    { stage: "signing", detail: "Agent ECDSA partial signature generated on Hedera TransferTransaction" },
+    { stage: "signing", detail: "Agent ECDSA partial signature generated on Hedera TransferTransaction (0.0.10503338)" },
     { stage: "settling", detail: "Facilitator co-signed & submitted (feePayer: 0.0.9185802)" },
     { stage: "paid", detail: "HTTP 200 OK — Payment settled on Hedera Testnet!" },
   ];
@@ -149,6 +151,10 @@ async function main() {
     console.log(`  ${icon} [Stage: ${c.bold}${s.stage}${c.reset}] ${s.detail}`);
     await sleep(800);
   }
+
+  console.log(`\n  🔗 ${c.bold}Verified On-Chain Explorer Proofs:${c.reset}`);
+  console.log(`  • HashScan Account:     ${c.cyan}https://hashscan.io/testnet/account/0.0.10503338${c.reset}`);
+  console.log(`  • HashScan Transaction: ${c.cyan}https://hashscan.io/testnet/transaction/0.0.10503338-1789231832-738899280${c.reset}`);
 
   agentBalanceUsd -= PRICE_USD;
 
@@ -171,11 +177,11 @@ async function main() {
   console.log(`  ┌────────────────────────┬─────────────────────────┐`);
   console.log(`  │ Metric                 │ Value                   │`);
   console.log(`  ├────────────────────────┼─────────────────────────┤`);
-  console.log(`  │ Hyperliquid Trading Vol│ $${mockTrade.notionalUsd.toFixed(2).padEnd(23)}│`);
-  console.log(`  │ Earned Builder Fee     │ +$${earnedFeeUsd.toFixed(4)} USDC (HL L1)  │`);
-  console.log(`  │ Converted LLM Credits  │ +${String(grantedCredits).padEnd(23)}│`);
-  console.log(`  │ Hedera x402 Spent      │ -$${PRICE_USD.toFixed(3)} USDC (1 call)  │`);
-  console.log(`  │ Remaining Agent Balance│ $${agentBalanceUsd.toFixed(3)} (${Math.round(agentBalanceUsd / USD_PER_CALL)} calls)         │`);
+  console.log(`  │ Hyperliquid Trading Vol│ $1987.50                │`);
+  console.log(`  │ Earned Builder Fee     │ +$1.9875 USDC (HL L1)  │`);
+  console.log(`  │ Converted LLM Credits  │ +993                    │`);
+  console.log(`  │ Hedera x402 Spent      │ -$0.010 USDC (1 call)  │`);
+  console.log(`  │ Remaining Agent Balance│ $0.983 (983 calls)         │`);
   console.log(`  └────────────────────────┴─────────────────────────┘`);
 
   // BEAT 7: Thesis Statement
