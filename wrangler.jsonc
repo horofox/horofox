@@ -20,6 +20,15 @@
     "OPENAI_BASE_URL": "https://api.z.ai/api/coding/paas/v4",
     "OPENAI_MODEL": "glm-5.3-flash",
     "HL_MODE": "paper",
-    "HL_NETWORK": "mainnet"
+    "HL_NETWORK": "mainnet",
+    // 결제를 받을 Hedera 계정. 비밀이 아니다 — 402 헤더로 어차피 공개된다.
+    // 이 값이 있어야 유료화가 켜진다 (없으면 데모 모드로 무료 응답).
+    "HEDERA_ACCOUNT_ID": "0.0.10503359",
+    "HEDERA_NETWORK": "testnet",
+    // Workers 의 fs 는 읽기 전용이라 호출 수를 셀 수 없다.
+    // 무료 허용량을 남겨두면 원장을 못 써서 매번 0회로 리셋되고, 결국 영원히 공짜가 된다.
+    // 그래서 배포본은 허용량을 0 으로 두고 **모든 호출을 x402 로 받는다.**
+    // 세지 못하는 한도를 있는 척하는 것보다 정직하다.
+    "FREE_CALLS_PER_DAY": "0"
   }
 }
