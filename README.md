@@ -79,25 +79,25 @@ Honest competitor analysis, including where rivals beat us on price and platform
 - **Hyperliquid perps (paper)** — real-time mid prices, positions with live PnL
 - **Token launchpad (paper)** — bonding curve with 1% fee accrual (the "fees fund compute" flywheel)
 - **LLM gateway** — OpenAI-compatible proxy with per-key credit metering
-- **Hedera x402 v2 micropayments** — HTTP 402 paywall on Hedera testnet (exact scheme via Blocky402 facilitator) + autonomous agent payment client with budget gate
+- **Hedera x402 v2 micropayments** — HTTP 402 paywall on Hedera testnet (exact scheme; facilitator is configurable) + autonomous agent payment client with budget gate
 - **Self-funding engine** — Hyperliquid builder fees settled into LLM credits idempotently
 - **Revenue engine** — swap fees + gateway metering vs. LLM cost → self-sustaining flywheel metric
 - **Trade journal + webhooks** — every execution journaled and POSTed out
 - **Skills** — drop a file in `skills/` to extend the agent
 
-## ETHOnline 2026: Closed-Loop Self-Funding Agent
+## ETHOnline 2026: paid market brief
 
-> *"An agent that cannot afford to answer you — until it earns the fee itself."*
+The x402 flow is Hedera **testnet** only. `scripts/demo-loop.ts` makes one paid `brief` request
+with a configured testnet wallet, then requires an x402 paid retry, a `PAYMENT-RESPONSE` receipt,
+and a live Hyperliquid market brief. It does not execute a trade, create credits, or claim a
+builder fee.
 
-While other agentic payment projects exclusively demonstrate how agents spend pre-funded wallets, Horofox closes the autonomous economic loop:
-1. **Zero-Balance Rejection**: Agent returns HTTP 402 when balance is $0.
-2. **Autonomous Earning**: Executes Hyperliquid trades with non-optional 0.1% builder code.
-3. **Idempotent Credit Conversion**: Settles on-chain fees into inference credits via `lib/selffund.ts`.
-4. **Autonomous Hedera x402 Micropayments**: Purchases live external data via Hedera testnet exact scheme and Blocky402 facilitator co-signing.
-5. **Auditable Ledger**: Answers user with paid intelligence and displays transparent on-chain accounting.
-
-Run the 7-beat automated demo runner:
+Run it only against a deployed server with paid mode enabled and its free allowance exhausted:
 ```bash
+HEDERA_NETWORK=testnet \
+HEDERA_AGENT_ACCOUNT_ID=0.0.x \
+HEDERA_AGENT_PRIVATE_KEY=0x... \
+DEMO_X402_URL=https://your-paid-service.example \
 npx tsx scripts/demo-loop.ts
 ```
 
@@ -146,7 +146,9 @@ All keys are optional except the LLM:
 | `HL_NETWORK` | Hyperliquid `mainnet` (default) or `testnet` |
 | `AGENT_API_KEY` | require bearer auth on `/api/v1/*` |
 | `GATEWAY_API_KEYS`, `GATEWAY_PRICE_*` | LLM gateway auth + metering rates |
-| `X402_PAY_TO` | enable real x402 charging (unset = demo mode) |
+| `HEDERA_ACCOUNT_ID` | enable x402 charging (unset = demo mode) |
+| `HEDERA_AGENT_ACCOUNT_ID`, `HEDERA_AGENT_PRIVATE_KEY` | testnet wallet used by the paid-demo client |
+| `DEMO_X402_URL`, `DEMO_SYMBOL` | deployed paid service and optional `brief` symbol for the demo |
 | `SWAP_FEE_RATE` | platform swap fee (default 0.005) |
 | `WEBHOOK_URL` | outbound trade notifications |
 

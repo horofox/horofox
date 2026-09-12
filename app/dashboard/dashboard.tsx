@@ -185,7 +185,7 @@ export default function Dashboard() {
           <h2>런치패드 <span className="dim-text">누적 수수료 ${num(pad?.totalFeesUsdc, 4)}</span></h2>
           <div className="paper-warn">
             ⚠ <b>페이퍼 본딩커브입니다 — 온체인 발행이 아닙니다.</b> 토큰도 유동성도 실재하지 않고,
-            수수료는 로컬 파일에만 적립됩니다. 실제 매출은 위의 builder 수수료뿐입니다.
+            수수료는 로컬 파일에만 적립됩니다. 실제 매출은 builder 수수료뿐입니다.
           </div>
           <table>
             <thead><tr><th>토큰</th><th>가격</th><th>보유</th><th>수수료</th><th>매매</th></tr></thead>

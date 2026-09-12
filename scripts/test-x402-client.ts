@@ -30,10 +30,14 @@ async function main() {
   const fake = new Response(null, { status: 402, headers: { "payment-required": enc } });
   t("USDC 6 decimals 를 달러로 환산", priceFromResponse(fake) === 0.01, `$${priceFromResponse(fake)}`);
   t("서버 단가와 일치", priceFromResponse(fake) === PRICE_USD);
-  t("헤더가 없으면 0 (틀린 금액으로 통과시키지 않음)", priceFromResponse(new Response(null, { status: 402 })) === 0);
+  t("헤더가 없으면 결제 견적을 거부", (() => {
+    try { priceFromResponse(new Response(null, { status: 402 })); return false; }
+    catch (e) { return e instanceof Error; }
+  })());
 
   console.log("\n실제 서버에 붙여 단계 전이를 본다");
-  const env = { ...process.env, HEDERA_ACCOUNT_ID: "0.0.123456", HEDERA_NETWORK: "testnet", FREE_CALLS_PER_DAY: "500" };
+  // 402 를 보려면 무료 허용량이 없어야 한다.
+  const env = { ...process.env, HEDERA_ACCOUNT_ID: "0.0.123456", HEDERA_NETWORK: "testnet", FREE_CALLS_PER_DAY: "0" };
   const srv = spawn("npx", ["next", "dev", "-p", String(PORT)], { env, stdio: "ignore", detached: true });
   try {
     const url = `http://127.0.0.1:${PORT}/api/x402?tool=price&symbol=BTC`;
@@ -47,9 +51,15 @@ async function main() {
     if (canPay()) {
       const f = payingFetch({ onStage: (e) => stages.push(e) });
       const res = await f(url);
-      t("결제 후 200", res.status === 200, `HTTP ${res.status}`);
-      t("결제 단계가 순서대로 흘렀다", stages.some((s) => s.stage === "payment_required") && stages.some((s) => s.stage === "paid"),
-        stages.map((s) => s.stage).join(" → "));
+      // payTo 가 실재하지 않는 계정(0.0.123456)이라 정산은 반드시 실패한다.
+      // 그게 정상이다 — 테스트가 검증하는 건 정산 성공이 아니라 **단계 기계가 끝까지 도는가**다.
+      // 실제 계정으로 정산이 성사되는 것은 `npm run demo` 가 온체인으로 증명한다.
+      const seq = stages.map((s) => s.stage).join(" → ");
+      t("402 를 만나 서명하고 제출까지 갔다",
+        ["payment_required", "signing", "settling"].every((s) => stages.some((x) => x.stage === s)), seq);
+      t("정산 결과가 단계로 보고된다",
+        stages.some((s) => s.stage === "paid" || s.stage === "refused"), seq);
+      t("존재하지 않는 수취 계정으로는 정산되지 않는다", res.status !== 200, `HTTP ${res.status}`);
     } else {
       // 지갑이 없어도 **예산 게이트가 결제를 막는 경로**는 검증할 수 있다.
       const raw = await fetch(url);
@@ -73,7 +83,7 @@ async function main() {
       console.log("  ℹ 지갑이 없어 게이트 실행은 건너뛴다. 코드 경로만 확인한다.");
       const src = await (await import("node:fs/promises")).readFile("lib/x402/client.ts", "utf8");
       t("budgetGate 가 결제 전에 호출된다", /budgetGate[\s\S]{0,200}refused/.test(src));
-      t("거부 시 402 를 삼키지 않는다", src.includes("삼키면 호출부가 결제된 줄 안다"));
+      t("거부 시 원래 402 를 반환한다", src.includes("return response"));
     }
   } finally { try { process.kill(-srv.pid!, "SIGKILL"); } catch { /* 종료됨 */ } }
 

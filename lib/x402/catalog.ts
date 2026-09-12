@@ -64,6 +64,19 @@ export const TOOL_SPECS: ToolSpec[] = [
     returns: "{ ok, symbol, hourly, annualisedPct, paidBy, markPrice, source }",
   },
   {
+    name: "brief",
+    summary: "One paid market brief: price, funding, leverage, dex and perp caveat.",
+    whyPaid:
+      "Returns the market facts an agent needs for one decision from current Hyperliquid data, " +
+      "including HIP-3 dex routing and an explicit perpetual-future disclosure.",
+    params: [
+      { name: "symbol", required: true, description: "Ticker without the dex prefix.", example: "NVDA" },
+      { name: "limit", required: false, description: "Funding ranking depth from 1 to 10; default 10.", example: "10" },
+      { name: "equitiesOnly", required: false, description: "Use true for HIP-3 equities only; default true.", example: "true" },
+    ],
+    returns: "{ ok, symbol, dex, perpCaveat, price, hourly, annualisedPct, paidBy, maxLeverage, measuredAt, source }",
+  },
+  {
     name: "portfolio",
     summary: "Balances and open positions for the calling account.",
     whyPaid: "Lets an agent check its own state on the same rail it trades through.",

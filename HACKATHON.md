@@ -50,7 +50,7 @@ Tracked below as it lands. Every entry links to commits made after 2026-09-04.
 
 | Date | What | Commits | Track it targets |
 | --- | --- | --- | --- |
-| 2026-09-05 | Migrate x402 to v2 and settle on Hedera testnet (Blocky402 facilitator) | `b44e4b6` | Hedera |
+| 2026-09-05 | Migrate x402 to v2 and configure Hedera testnet exact settlement | `b44e4b6` | Hedera |
 | 2026-09-06 | Make paid API discoverable via manifest, llms.txt, openapi, and MCP | `404774a` | Bazantic, Hedera |
 | 2026-09-08 | Agent client that autonomously buys data via Hedera x402 with budget gate | `35d985c` | Hedera |
 
@@ -64,7 +64,8 @@ To be confirmed at submission. Candidates, in priority order:
 
 ## Honesty notes
 
-- The x402 endpoint settles on `hedera:testnet` via the official facilitator (`feePayer: 0.0.9185802`). Real money settlement works on testnet USDC (`0.0.429274`).
+- The x402 code is configured for `hedera:testnet`. Its default testnet facilitator is `x402.org/facilitator`; a Blocky402 testnet URL is configurable but unverified. Testnet USDC is test currency, so it is not a claim of mainnet or real-money settlement. A completed payment may be claimed only with the resulting `PAYMENT-RESPONSE` receipt.
+- Hedera's Blocky402 requirement remains a submission target. Claim it only after a testnet demo captures a receipt from the configured Blocky402 facilitator.
 - Trading runs in paper mode on the deployed site (`HL_MODE=paper`). Perp orders are signed for real
   only when an operator sets a key.
 - ETHGlobal's own rules note that submissions leaning on pre-existing work historically score lower.

@@ -17,6 +17,8 @@ async function main() {
 
   console.log("\n네 표면이 같은 툴 목록을 말하는가");
   const names = TOOL_SPECS.map((x) => x.name);
+  const price = TOOL_SPECS.find((x) => x.name === "price");
+  const brief = TOOL_SPECS.find((x) => x.name === "brief");
   const m = manifest();
   const o = openapi();
   const l = llmsTxt();
@@ -26,6 +28,10 @@ async function main() {
   t("openapi 경로 수 일치", Object.keys(o.paths).length === names.length);
   t("openapi 가 전 툴을 담음", names.every((n) => `/api/x402?tool=${n}` in o.paths));
   t("llms.txt 가 전 툴을 담음", names.every((n) => l.includes(`### ${n}`)));
+  t("brief 가 단일 유료 시장 판단 결과를 노출", brief?.returns.includes("perpCaveat") === true && brief.returns.includes("measuredAt"));
+  t("brief 에만 insight 필터가 있다",
+    price?.params.length === 1 && brief?.params.some((p) => p.name === "limit") === true && brief.params.some((p) => p.name === "equitiesOnly") === true,
+  );
 
   console.log("\n가격·네트워크가 한 곳에서 나오는가");
   t("매니페스트 가격이 상수와 일치", m.resources.every((r) => r.accepts[0].price === `$${PRICE_USD}`), `$${PRICE_USD}`);

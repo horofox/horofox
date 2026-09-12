@@ -42,7 +42,8 @@ async function main() {
   // 데모 모드 (X402_PAY_TO 미설정) 로 띄운다
   // 툴 검증에는 쿼터가 방해되므로 넉넉히 준다.
   // 쿼터 자체는 아래에서 따로, 낮은 한도로 확인한다.
-  const env = { ...process.env, X402_PAY_TO: "", HL_MODE: "paper", FREE_CALLS_PER_DAY: "500" };
+  // 데모 모드는 HEDERA_ACCOUNT_ID 가 비어 있어야 한다 — payTo() 가 읽는 건 이 변수다.
+  const env = { ...process.env, X402_PAY_TO: "", HEDERA_ACCOUNT_ID: "", HL_MODE: "paper", FREE_CALLS_PER_DAY: "500" };
   const srv = spawn("npx", ["next", "dev", "-p", String(PORT)], { env, stdio: "ignore", detached: true });
   const cleanup = () => { try { process.kill(-srv.pid!, "SIGKILL"); } catch { /* 종료됨 */ } };
   process.on("exit", cleanup);
@@ -93,7 +94,8 @@ async function main() {
     console.log("\n유료 모드 — 수취 계정을 넣으면 실제로 402 를 내는가");
     // 데모 모드만 보면 결제 계층이 죽어 있어도 통과한다. 계정을 넣고 진짜로 띄운다.
     const P3 = PORT + 2;
-    const paidEnv = { ...process.env, HEDERA_ACCOUNT_ID: "0.0.123456", HEDERA_NETWORK: "testnet", FREE_CALLS_PER_DAY: "500" };
+    // 무료 허용량이 남아 있으면 결제를 요구하지 않는다(정상 동작). 결제 경로를 보려면 0 이어야 한다.
+    const paidEnv = { ...process.env, HEDERA_ACCOUNT_ID: "0.0.123456", HEDERA_NETWORK: "testnet", FREE_CALLS_PER_DAY: "0" };
     const srv3 = spawn("npx", ["next", "dev", "-p", String(P3)], { env: paidEnv, stdio: "ignore", detached: true });
     try {
       const u3 = `http://127.0.0.1:${P3}/api/x402?tool=price&symbol=BTC`;
@@ -119,7 +121,7 @@ async function main() {
     // 낮은 한도로 별도 인스턴스를 띄워 소진까지 확인한다
     const P2 = PORT + 1;
     const srv2 = spawn("npx", ["next", "dev", "-p", String(P2)],
-      { env: { ...process.env, X402_PAY_TO: "", HL_MODE: "paper", FREE_CALLS_PER_DAY: "2", HL_QUOTA_SUFFIX: String(Date.now()) },
+      { env: { ...process.env, X402_PAY_TO: "", HEDERA_ACCOUNT_ID: "", HL_MODE: "paper", FREE_CALLS_PER_DAY: "2", HL_QUOTA_SUFFIX: String(Date.now()) },
         stdio: "ignore", detached: true });
     try {
       const b2 = `http://127.0.0.1:${P2}/api/x402?tool=price&symbol=BTC`;

@@ -145,28 +145,13 @@ async function handle(req: Request) {
 
   // 무료 한도. 결제 헤더가 있으면 결제 계층이 처리하므로 한도를 건드리지 않는다 —
   // 돈을 낸 호출까지 무료분에서 깎으면 이중 과금이다.
-  if (!paymentHeader) {
-    const who = subjectOf(req, identify(req)?.userId ?? null);
+  const who = subjectOf(req, identify(req)?.userId ?? null);
+
+  // 데모 모드: 수취 계정이 없어 검증할 결제 계층 자체가 없다.
+  // 결제처럼 보이는 헤더는 신뢰할 근거가 없으므로 무시하고 무료 한도만 적용한다.
+  if (!paidMode) {
     const q = await consume(who);
-
-    if (q.allowed) {
-      // 허용량 안이면 유료 모드여도 그냥 준다 — llms.txt 가 약속한 "결제 전에 먼저 써보기"다.
-      try {
-        return NextResponse.json({
-          ...(await runTool(toolName, url.searchParams)),
-          ...(paidMode
-            ? { mode: "free-allowance", remaining: q.remaining }
-            : { mode: "demo", note: `HEDERA_ACCOUNT_ID 설정 시 유료 전환 (hedera:${NETWORK})` }),
-        });
-      } catch (e) {
-        return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : String(e) }, { status: 400 });
-      }
-    }
-
-    // 허용량 소진. 유료 모드면 **여기서 막지 않는다** — 아래 결제 계층이
-    // `PAYMENT-REQUIRED` 헤더를 실은 402 를 만든다. 여기서 돌려주면
-    // "x402 로 내라"고 말하면서 낼 대상은 주지 않는 402 가 되어, 에이전트가 결제할 수 없다.
-    if (!paidMode) {
+    if (!q.allowed) {
       return NextResponse.json(
         {
           x402Version: 2,
@@ -177,11 +162,42 @@ async function handle(req: Request) {
         { status: 402 },
       );
     }
-  } else if (!paidMode) {
-    return NextResponse.json(
-      { x402Version: 2, error: "payment verification unavailable" },
-      { status: 402 },
-    );
+    if (paymentHeader) {
+      return NextResponse.json(
+        { x402Version: 2, error: "payment verification unavailable" },
+        { status: 402 },
+      );
+    }
+    try {
+      return NextResponse.json({
+        ...(await runTool(toolName, url.searchParams)),
+        mode: "demo",
+        note: `HEDERA_ACCOUNT_ID 설정 시 유료 전환 (hedera:${NETWORK})`,
+      });
+    } catch (e) {
+      return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : String(e) }, { status: 400 });
+    }
+  }
+
+  // 유료 모드. 결제 헤더가 있으면 한도를 건드리지 않고 결제 계층에 넘긴다 —
+  // 돈을 낸 호출까지 무료분에서 깎으면 이중 과금이다.
+  if (!paymentHeader) {
+    const q = await consume(who);
+    if (q.allowed) {
+      // 허용량이 남았으면 그냥 준다 — llms.txt 가 약속한 "결제 전에 먼저 써보기"다.
+      try {
+        return NextResponse.json({
+          ...(await runTool(toolName, url.searchParams)),
+          mode: "free-allowance",
+          remaining: q.remaining,
+        });
+      } catch (e) {
+        return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : String(e) }, { status: 400 });
+      }
+    }
+    // 소진. **여기서 막지 않는다** — 아래 결제 계층이 `PAYMENT-REQUIRED` 헤더를 실은
+    // 402 를 만든다. 여기서 돌려주면 "x402 로 내라"고 하면서 낼 대상은 주지 않는
+    // 402 가 되어, 에이전트가 결제할 방법이 없다.
   }
 
   // 유료 경로 — 코어가 402 생성·검증·정산을 전부 처리한다.

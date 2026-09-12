@@ -9,9 +9,15 @@
 // 조사한 필드(리스본·HackMoney 전수)에서 에이전트 결제 프로젝트는 전부 쓰는 쪽만 다룬다.
 // 버는 쪽과 쓰는 쪽이 같은 시스템 안에 있는 팀이 없다 — 거기가 우리 자리다.
 
-import { wrapFetchWithPayment, x402Client } from "@x402/fetch";
+import { x402Client, x402HTTPClient } from "@x402/fetch";
+import { decodePaymentRequiredHeader } from "@x402/core/http";
+import type { PaymentRequired, PaymentRequirements } from "@x402/core/types";
 import { ExactHederaScheme } from "@x402/hedera/exact/client";
-import { createClientHederaSigner } from "@x402/hedera";
+import {
+  createClientHederaSigner,
+  HEDERA_MAINNET_USDC,
+  HEDERA_TESTNET_USDC,
+} from "@x402/hedera";
 import { PrivateKey } from "@hiero-ledger/sdk";
 import { NETWORK, type HederaNetwork } from "./server";
 
@@ -25,6 +31,13 @@ export type PayStage =
   | "refused";          // 예산 초과 등으로 우리가 결제를 거부
 
 export type PayEvent = { stage: PayStage; detail?: string; amountUsd?: number };
+
+export class InvalidPaymentQuoteError extends Error {
+  constructor(readonly reason: string) {
+    super(`Invalid x402 Hedera quote: ${reason}`);
+    this.name = "InvalidPaymentQuoteError";
+  }
+}
 
 /** 결제에 쓸 지갑이 설정돼 있는가. 없으면 무료 경로만 쓴다. */
 export function canPay(): boolean {
@@ -69,59 +82,93 @@ export function payingFetch(opts: {
 } = {}): typeof fetch {
   const { onStage = () => {}, budgetGate, network = NETWORK } = opts;
   const client = buildClient(network);
+  const http = new x402HTTPClient(client);
 
-  // 402 를 가로채 단계를 알리고 예산을 확인한 뒤, 통과하면 결제 계층에 넘긴다.
-  const observed: typeof fetch = async (input, init) => {
-    const req = input instanceof Request ? input : new Request(String(input), init);
-    const isRetry = req.headers.has("PAYMENT-SIGNATURE") || req.headers.has("X-PAYMENT");
+  return async (input, init) => {
+    const request = new Request(input, init);
+    onStage({ stage: "requesting" });
+    const response = await globalThis.fetch(request.clone());
+    if (response.status !== 402) return response;
 
-    if (isRetry) {
-      onStage({ stage: "settling" });
-      const res = await globalThis.fetch(input as RequestInfo, init);
-      onStage({ stage: res.ok ? "paid" : "refused", detail: res.ok ? undefined : `HTTP ${res.status}` });
-      return res;
+    let paymentRequired: PaymentRequired;
+    let quote: PaymentRequirements;
+    try {
+      paymentRequired = paymentRequiredFromResponse(response);
+      quote = selectHederaUsdcQuote(paymentRequired, network);
+    } catch (error) {
+      if (!(error instanceof InvalidPaymentQuoteError)) throw error;
+      onStage({ stage: "refused", detail: error.message });
+      return response;
     }
 
-    onStage({ stage: "requesting" });
-    const res = await globalThis.fetch(input as RequestInfo, init);
-    if (res.status !== 402) return res;
-
-    const amountUsd = priceFromResponse(res);
+    const amountUsd = Number(quote.amount) / 1_000_000;
     onStage({ stage: "payment_required", amountUsd });
 
     if (budgetGate) {
       const ok = await budgetGate(amountUsd);
       if (!ok) {
         onStage({ stage: "refused", detail: `예산이 허락하지 않습니다 ($${amountUsd})`, amountUsd });
-        // 402 를 그대로 돌려준다. 삼키면 호출부가 결제된 줄 안다.
-        return res;
+        return response;
       }
     }
 
     onStage({ stage: "signing", amountUsd });
-    return res;
-  };
+    const paymentPayload = await client.createPaymentPayload({ ...paymentRequired, accepts: [quote] });
+    for (const [name, value] of Object.entries(http.encodePaymentSignatureHeader(paymentPayload))) {
+      request.headers.set(name, value);
+    }
 
-  return wrapFetchWithPayment(observed, client);
+    onStage({ stage: "settling", amountUsd });
+    const paidResponse = await globalThis.fetch(request);
+    const result = await http.processPaymentResult(
+      paymentPayload,
+      (name) => paidResponse.headers.get(name),
+      paidResponse.status,
+    );
+    const paid = paidResponse.ok && result.settleResponse?.success === true;
+    onStage({
+      stage: paid ? "paid" : "refused",
+      detail: paid ? undefined : `HTTP ${paidResponse.status}: settlement not confirmed`,
+      amountUsd,
+    });
+    return paidResponse;
+  };
 }
 
-/** 402 응답에서 청구 금액(USD)을 읽는다. 헤더가 정본이고 본문은 보조다. */
-export function priceFromResponse(res: Response): number {
-  const enc = [...res.headers].find(([k]) => k.toLowerCase() === "payment-required")?.[1];
-  if (!enc) return 0;
+function paymentRequiredFromResponse(response: Response): PaymentRequired {
+  const encoded = response.headers.get("payment-required");
+  if (!encoded) throw new InvalidPaymentQuoteError("missing PAYMENT-REQUIRED header");
   try {
-    const j = JSON.parse(Buffer.from(enc, "base64").toString("utf8")) as {
-      accepts?: { amount?: string; asset?: string }[];
-    };
-    const a = j.accepts?.[0];
-    if (!a?.amount) return 0;
-    // USDC 는 6 decimals. 자산이 다르면 단위가 달라지므로 그때는 0 을 돌려주고
-    // 호출부가 판단하게 둔다 — 틀린 금액으로 예산을 통과시키는 것보다 낫다.
-    if (a.asset && a.asset !== "0.0.0" && /^\d+\.\d+\.\d+$/.test(a.asset)) {
-      return Number(a.amount) / 1_000_000;
-    }
-    return 0;
-  } catch {
-    return 0;
+    return decodePaymentRequiredHeader(encoded);
+  } catch (error) {
+    throw new InvalidPaymentQuoteError(error instanceof Error ? error.message : "malformed header");
   }
+}
+
+function selectHederaUsdcQuote(
+  paymentRequired: PaymentRequired,
+  network: HederaNetwork,
+): PaymentRequirements {
+  if (paymentRequired.x402Version !== 2) {
+    throw new InvalidPaymentQuoteError(`unsupported x402 version ${paymentRequired.x402Version}`);
+  }
+  const expectedNetwork = `hedera:${network}`;
+  const expectedAsset = network === "mainnet" ? HEDERA_MAINNET_USDC : HEDERA_TESTNET_USDC;
+  const quote = paymentRequired.accepts.find(({ scheme, network: quotedNetwork, asset }) =>
+    scheme === "exact" && quotedNetwork === expectedNetwork && asset === expectedAsset,
+  );
+  if (!quote) {
+    throw new InvalidPaymentQuoteError(`expected exact ${expectedNetwork} USDC`);
+  }
+  if (!/^[1-9]\d*$/.test(quote.amount)) {
+    throw new InvalidPaymentQuoteError("amount must be positive integer micro-units");
+  }
+  if (BigInt(quote.amount) > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new InvalidPaymentQuoteError("amount exceeds the safe budget range");
+  }
+  return quote;
+}
+
+export function priceFromResponse(response: Response, network: HederaNetwork = NETWORK): number {
+  return Number(selectHederaUsdcQuote(paymentRequiredFromResponse(response), network).amount) / 1_000_000;
 }
